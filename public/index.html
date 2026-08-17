@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>brew-new-tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="scanlines" aria-hidden="true"></div>
+
+  <div class="container">
+    <header>
+      <p class="eyebrow">homebrew · monitor pacchetti</p>
+      <h1><span class="prompt-glyph">$</span> brew-new-tracker<span class="cursor" aria-hidden="true">▊</span></h1>
+      <p class="subtitle">Le ultime formule, cask e font aggiunti a Homebrew, in tempo reale.</p>
+    </header>
+
+    <section class="controls" aria-label="Parametri di ricerca">
+      <div class="controls-grid">
+        <div class="field">
+          <label for="num"><span class="flag">--n</span> risultati</label>
+          <input type="number" id="num" min="1" max="100" value="25" />
+        </div>
+
+        <div class="field">
+          <label for="threads"><span class="flag">--threads</span> worker</label>
+          <input type="number" id="threads" min="1" max="64" value="8" />
+        </div>
+
+        <div class="field field-wide">
+          <label><span class="flag">--only</span> tipo pacchetto</label>
+          <div class="segmented" role="radiogroup" aria-label="Tipo di pacchetto">
+            <label class="segment"><input type="radio" name="only" value="both" checked /><span>entrambi</span></label>
+            <label class="segment"><input type="radio" name="only" value="formula" /><span>formula</span></label>
+            <label class="segment"><input type="radio" name="only" value="cask" /><span>cask</span></label>
+            <label class="segment"><input type="radio" name="only" value="font" /><span>font</span></label>
+          </div>
+        </div>
+
+        <div class="field field-wide field-flags">
+          <label class="switch"><input type="checkbox" id="combined" /><span class="track"></span><span class="switch-label"><span class="flag">--combined</span> vista unica per data</span></label>
+          <label class="switch"><input type="checkbox" id="noHomepage" /><span class="track"></span><span class="switch-label"><span class="flag">--no-homepage</span> salta homepage, più veloce</span></label>
+          <label class="switch"><input type="checkbox" id="jsonOutput" checked /><span class="track"></span><span class="switch-label"><span class="flag">--json</span> struttura tabellare</span></label>
+        </div>
+
+        <div class="field field-wide">
+          <label for="githubToken"><span class="flag">--token</span> GitHub <em>(opzionale)</em></label>
+          <input type="password" id="githubToken" placeholder="ghp_········" autocomplete="off" />
+        </div>
+      </div>
+
+      <div class="command-line" aria-live="polite">
+        <span class="command-line-label">comando</span>
+        <code id="commandPreview">brew-new-tracker-v2.sh -n 25 --only both --json</code>
+      </div>
+
+      <button id="goBtn" type="button">Esegui <span class="btn-arrow">▸</span></button>
+    </section>
+
+    <section class="output">
+      <div class="term-titlebar">
+        <span class="dot dot-1"></span><span class="dot dot-2"></span><span class="dot dot-3"></span>
+        <span class="term-title">output — zsh</span>
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="table" type="button">tabella</button>
+          <button class="tab-btn" data-tab="json" type="button">json</button>
+          <button class="tab-btn" data-tab="raw" type="button">testo grezzo</button>
+        </div>
+      </div>
+      <div class="tab-content">
+        <div id="tableTab" class="tab-pane active"></div>
+        <pre id="jsonTab" class="tab-pane"><code></code></pre>
+        <pre id="rawTab" class="tab-pane"><code></code></pre>
+      </div>
+    </section>
+
+    <footer>
+      <p>replica web di <a href="https://github.com/massicanzo/brew-new-tracker" target="_blank" rel="noopener">brew-new-tracker-v2.sh</a></p>
+    </footer>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

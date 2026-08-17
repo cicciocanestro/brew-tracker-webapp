@@ -1,0 +1,15 @@
+{
+  "name": "brew-tracker-webapp",
+  "version": "1.0.0",
+  "description": "Web app che replica l'output di brew-new-tracker-v2.sh",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}
