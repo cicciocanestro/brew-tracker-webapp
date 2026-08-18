@@ -1,0 +1,10 @@
+{
+  "install": {
+    "include": ["package.json"],
+    "run": "npm install"
+  },
+  "restart": {
+    "include": ["server.js", "public/**"],
+    "run": "npm start"
+  }
+}
