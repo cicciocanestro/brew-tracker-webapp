@@ -110,6 +110,7 @@ async function getPackageInfo(kind, name) {
     return true;
   });
 
+  let notFound = false;
   for (const cand of uniq) {
     if (PACKAGE_CACHE[cand]) return PACKAGE_CACHE[cand];
     const url = `https://formulae.brew.sh/api/${kind}/${encodeURIComponent(cand)}.json`;
@@ -117,6 +118,7 @@ async function getPackageInfo(kind, name) {
       const res = await fetch(url, {
         headers: { 'User-Agent': 'brew-new-tracker/2.0' },
       });
+      if (res.status === 404) { notFound = true; continue; }
       if (!res.ok) continue;
       const data = await res.json();
       const apiVersion = data.version || (data.versions && data.versions.stable) || '';
@@ -128,8 +130,9 @@ async function getPackageInfo(kind, name) {
       continue;
     }
   }
-  PACKAGE_CACHE[name] = { version: '', homepage: '', desc: '' };
-  return { version: '', homepage: '', desc: '' };
+  const result = { version: '', homepage: '', desc: '', notFound };
+  PACKAGE_CACHE[name] = result;
+  return result;
 }
 
 async function enrichRows(rows, kind, fetchHomepage, threads) {
@@ -148,8 +151,8 @@ async function enrichRows(rows, kind, fetchHomepage, threads) {
       );
       for (let i = 0; i < chunk.length; i++) {
         const [name, date, version] = chunk[i];
-        const { version: apiVersion, homepage, desc } = results[i];
-        enriched.push([name, version || apiVersion, date, homepage, desc]);
+        const { version: apiVersion, homepage, desc, notFound } = results[i];
+        enriched.push([name, version || apiVersion, date, homepage, desc, notFound]);
       }
     }
     return enriched;
@@ -278,16 +281,17 @@ app.get('/api/brew-tracker', async (req, res) => {
   if (outputJson) {
     const out = {};
     for (const [key, rows] of Object.entries(enriched)) {
-      out[key] = rows.map(([n, v, d, h, desc]) => {
+      out[key] = rows.map(([n, v, d, h, desc, notFound]) => {
         const { label, relative } = humanDate(d);
+        const na = notFound ? 'non ancora disponibile' : null;
         return {
           name: n,
           version: v,
           date: d,
           date_human: label,
           date_relative: relative,
-          homepage: h,
-          description: desc,
+          homepage: na || h,
+          description: na || desc,
         };
       });
     }
@@ -375,15 +379,16 @@ app.get('/api/brew-tracker', async (req, res) => {
         widths.push(descW);
       }
 
-      const rowData = merged.map(([kind, name, version, date, homepage, desc]) => {
+      const rowData = merged.map(([kind, name, version, date, homepage, desc, notFound]) => {
+        const na = notFound ? 'non ancora disponibile' : null;
         const cells = [
           cell(kind, typeW),
           cell(name, nameW),
           cell(version || '—', verW),
           cell(compactDate(date), dateW),
         ];
-        if (homeW) cells.push(cell(homepage ? homepage.replace(/^https?:\/\//, '').trim() : '—', homeW));
-        if (descW) cells.push(cell(desc, descW));
+        if (homeW) cells.push(cell(homepage ? homepage.replace(/^https?:\/\//, '').trim() : (na || '—'), homeW));
+        if (descW) cells.push(cell(desc || na || '—', descW));
         return cells;
       });
 
@@ -432,14 +437,15 @@ app.get('/api/brew-tracker', async (req, res) => {
       if (homeW) widths.push(homeW), headers.push('HOMEPAGE');
       if (descW) widths.push(descW), headers.push('DESC');
 
-      const rowData = rows.map(([name, version, date, homepage, desc]) => {
+      const rowData = rows.map(([name, version, date, homepage, desc, notFound]) => {
+        const na = notFound ? 'non ancora disponibile' : null;
         const cells = [
           cell(name, nameW),
           cell(version || '—', verW),
           cell(compactDate(date), 11),
         ];
-        if (homeW) cells.push(cell(homepage ? homepage.replace(/^https?:\/\//, '').trim() : '—', homeW));
-        if (descW) cells.push(cell(desc, descW));
+        if (homeW) cells.push(cell(homepage ? homepage.replace(/^https?:\/\//, '').trim() : (na || '—'), homeW));
+        if (descW) cells.push(cell(desc || na || '—', descW));
         return cells;
       });
 
