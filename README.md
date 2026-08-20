@@ -42,6 +42,10 @@ GET /api/brew-tracker?n=5&only=formula&json=true&noHomepage=true
 GET /api/brew-tracker?n=10&combined=true&json=false
 ```
 
+### `GET /api/status`
+
+Restituisce `{ "githubTokenSet": boolean }` — indica se il server ha un token GitHub configurato (`GITHUB_TOKEN`/`GH_TOKEN`). La landing page lo usa per mostrare il badge di stato del token.
+
 ## Token GitHub (opzionale)
 
 Puoi impostare il token tramite:

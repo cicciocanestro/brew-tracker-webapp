@@ -21,6 +21,37 @@ document.addEventListener('DOMContentLoaded', () => {
     return token ? { 'X-GitHub-Token': token } : {};
   }
 
+  // Badge di stato del token GitHub: server (env var) e/o form.
+  async function updateTokenStatus() {
+    const el = document.getElementById('tokenStatus');
+    if (!el) return;
+
+    let serverSet = false;
+    try {
+      const resp = await fetch('/api/status');
+      if (resp.ok) {
+        const data = await resp.json();
+        serverSet = !!data.githubTokenSet;
+      }
+    } catch {
+      serverSet = false;
+    }
+
+    const formToken = getToken();
+    const parts = [];
+    if (serverSet) parts.push('token server attivo');
+    if (formToken) parts.push('token form attivo');
+
+    el.hidden = false;
+    if (!parts.length) {
+      el.textContent = '🔑 token GitHub non impostato';
+      el.className = 'token-status warn';
+    } else {
+      el.textContent = `🔑 ${parts.join(' · ')}`;
+      el.className = 'token-status ok';
+    }
+  }
+
   // Tab switching (il contenuto grezzo viene caricato al primo click)
   tabs.forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -87,6 +118,14 @@ document.addEventListener('DOMContentLoaded', () => {
     el.addEventListener('change', updateCommandPreview);
   });
   updateCommandPreview();
+
+  // Aggiorna il badge token anche quando l'utente digita/incolla un token
+  const tokenInput = document.getElementById('githubToken');
+  if (tokenInput) {
+    tokenInput.addEventListener('input', updateTokenStatus);
+    tokenInput.addEventListener('change', updateTokenStatus);
+  }
+  updateTokenStatus();
 
   function renderWarnings(warnings) {
     const existing = document.querySelector('.warnings');

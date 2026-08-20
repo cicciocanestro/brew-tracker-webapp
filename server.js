@@ -490,6 +490,16 @@ app.get('/api/brew-tracker', async (req, res) => {
   res.type('text/plain').send(lines.join('\n'));
 });
 
+// -----------------------------------------------------------------------------
+// Status endpoint
+// -----------------------------------------------------------------------------
+
+app.get('/api/status', (req, res) => {
+  res.json({
+    githubTokenSet: !!(process.env.GITHUB_TOKEN || process.env.GH_TOKEN),
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`Server avviato su http://localhost:${PORT}`);
 });

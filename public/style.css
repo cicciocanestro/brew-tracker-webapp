@@ -122,6 +122,34 @@ header h1 {
   max-width: 46ch;
 }
 
+/* GitHub token status badge */
+.token-status {
+  margin-top: 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  padding: 0.22rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+}
+
+.token-status.ok {
+  color: var(--ok);
+  border-color: rgba(126, 198, 153, 0.45);
+  background: rgba(126, 198, 153, 0.08);
+}
+
+.token-status.warn {
+  color: var(--amber);
+  border-color: rgba(240, 169, 58, 0.45);
+  background: rgba(240, 169, 58, 0.08);
+}
+
 /* ------------------------------ Controls ------------------------------ */
 .controls {
   background: var(--bg-elevated);
