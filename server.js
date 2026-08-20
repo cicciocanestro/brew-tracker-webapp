@@ -7,7 +7,6 @@ const PORT = process.env.PORT || 3000;
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
 
-app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // -----------------------------------------------------------------------------
@@ -71,9 +70,20 @@ function extractNameVersion(title, keyword) {
 // API calls
 // -----------------------------------------------------------------------------
 
-const PACKAGE_CACHE = {};
+const PACKAGE_CACHE = new Map();
+const PACKAGE_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 ore
+const PACKAGE_CACHE_MAX = 2000;
+
+const GITHUB_CACHE = new Map();
+const GITHUB_CACHE_TTL = 5 * 60 * 1000; // 5 minuti
 
 async function fetchGithub(repo, phrase, perPage, token) {
+  const cacheKey = `${repo}|${phrase}|${perPage}`;
+  const cached = GITHUB_CACHE.get(cacheKey);
+  if (cached && Date.now() - cached.ts < GITHUB_CACHE_TTL) {
+    return cached.data;
+  }
+
   const params = new URLSearchParams({
     q: `repo:${repo} "${phrase}"`,
     sort: 'committer-date',
@@ -91,12 +101,17 @@ async function fetchGithub(repo, phrase, perPage, token) {
   }
 
   const url = `https://api.github.com/search/commits?${params.toString()}`;
-  const res = await fetch(url, { headers, timeout: 15000 });
+  const res = await fetch(url, {
+    headers,
+    signal: AbortSignal.timeout(15000),
+  });
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`GitHub API ${res.status}: ${body}`);
   }
-  return res.json();
+  const data = await res.json();
+  GITHUB_CACHE.set(cacheKey, { data, ts: Date.now() });
+  return data;
 }
 
 async function getPackageInfo(kind, name) {
@@ -112,11 +127,15 @@ async function getPackageInfo(kind, name) {
 
   let notFound = false;
   for (const cand of uniq) {
-    if (PACKAGE_CACHE[cand]) return PACKAGE_CACHE[cand];
+    const cached = PACKAGE_CACHE.get(cand);
+    if (cached && Date.now() - cached.ts < PACKAGE_CACHE_TTL) {
+      return cached.data;
+    }
     const url = `https://formulae.brew.sh/api/${kind}/${encodeURIComponent(cand)}.json`;
     try {
       const res = await fetch(url, {
         headers: { 'User-Agent': 'brew-new-tracker/2.0' },
+        signal: AbortSignal.timeout(15000),
       });
       if (res.status === 404) { notFound = true; continue; }
       if (!res.ok) continue;
@@ -124,14 +143,22 @@ async function getPackageInfo(kind, name) {
       const apiVersion = data.version || (data.versions && data.versions.stable) || '';
       const homepage = data.homepage || '';
       const desc = data.desc || '';
-      PACKAGE_CACHE[cand] = { version: apiVersion, homepage, desc };
-      return PACKAGE_CACHE[cand];
+      const result = { version: apiVersion, homepage, desc };
+      PACKAGE_CACHE.set(cand, { data: result, ts: Date.now() });
+      return result;
     } catch {
       continue;
     }
   }
   const result = { version: '', homepage: '', desc: '', notFound };
-  PACKAGE_CACHE[name] = result;
+  PACKAGE_CACHE.set(name, { data: result, ts: Date.now() });
+  if (PACKAGE_CACHE.size > PACKAGE_CACHE_MAX) {
+    const now = Date.now();
+    for (const [k, v] of PACKAGE_CACHE) {
+      if (now - v.ts >= PACKAGE_CACHE_TTL) PACKAGE_CACHE.delete(k);
+    }
+    if (PACKAGE_CACHE.size > PACKAGE_CACHE_MAX) PACKAGE_CACHE.clear();
+  }
   return result;
 }
 
@@ -207,7 +234,7 @@ async function fetchAndParse(repo, phrase, keyword, limit, fetchHomepage, thread
 
   const rows = Object.entries(seen)
     .map(([name, [date, version]]) => [name, date, version])
-    .sort((a, b) => (b[1] > a[1] ? 1 : -1))
+    .sort((a, b) => (a[1] < b[1] ? 1 : a[1] > b[1] ? -1 : 0))
     .slice(0, limit);
 
   return { rows, warning: null };
@@ -225,8 +252,8 @@ app.get('/api/brew-tracker', async (req, res) => {
     noHomepage = 'false',
     combined = 'false',
     threads = '8',
-    token = '',
   } = req.query;
+  const token = req.headers['x-github-token'] || req.query.token || '';
 
   let perPage = parseInt(n, 10);
   if (isNaN(perPage) || perPage < 1 || perPage > 100) {
@@ -238,7 +265,7 @@ app.get('/api/brew-tracker', async (req, res) => {
     return res.status(400).json({ error: `--only accetta solo ${allowedOnly.join(', ')}.` });
   }
 
-  const threadCount = Math.max(1, parseInt(threads, 10) || 8);
+  const threadCount = Math.min(64, Math.max(1, parseInt(threads, 10) || 8));
   const fetchHomepage = noHomepage !== 'true';
   const outputJson = json === 'true';
   const doCombined = combined === 'true';
@@ -356,7 +383,7 @@ app.get('/api/brew-tracker', async (req, res) => {
         merged.push([kind, ...r]);
       }
     }
-    merged.sort((a, b) => (b[3] > a[3] ? 1 : -1));
+    merged.sort((a, b) => (a[3] < b[3] ? 1 : a[3] > b[3] ? -1 : 0));
 
     if (!merged.length) {
       lines.push('', '🍺 🖥 🔠 TUTTI I PACCHETTI  (0)', '  nessun risultato');
@@ -392,7 +419,7 @@ app.get('/api/brew-tracker', async (req, res) => {
         return cells;
       });
 
-      lines.push(...printTable('🍺 🖥 TUTTI I PACCHETTI', merged.length, headers, widths, rowData));
+      lines.push(...printTable('🍺 🖥 🔠 TUTTI I PACCHETTI', merged.length, headers, widths, rowData));
     }
 
     lines.push('', `· ${merged.length} pacchetti totali ·`, '');

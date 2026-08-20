@@ -443,6 +443,15 @@ input:focus-visible {
   white-space: pre;
 }
 
+/* Terminal-style text output shown in the table tab when --json is off */
+.text-view {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  white-space: pre;
+  overflow-x: auto;
+  margin: 0;
+}
+
 /* Table */
 table {
   width: 100%;

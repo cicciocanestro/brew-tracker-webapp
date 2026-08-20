@@ -3,7 +3,25 @@ document.addEventListener('DOMContentLoaded', () => {
   const tabs = document.querySelectorAll('.tab-btn');
   const panes = document.querySelectorAll('.tab-pane');
 
-  // Tab switching
+  // Cache dell'output testuale, indicizzata dai parametri della richiesta.
+  // La tab "testo grezzo" (e la tab "tabella" quando --json è spento) viene
+  // riempita in modo lazy, così un'esecuzione normale colpisce l'API una sola volta.
+  let currentParamsKey = '';
+  let rawCache = { key: '', text: '' };
+
+  function getToken() {
+    const el = document.getElementById('githubToken');
+    return el ? el.value.trim() : '';
+  }
+
+  // Il token viaggia in un header HTTP, non nella query string (i log del
+  // server/proxy non devono registrare il token).
+  function apiHeaders() {
+    const token = getToken();
+    return token ? { 'X-GitHub-Token': token } : {};
+  }
+
+  // Tab switching (il contenuto grezzo viene caricato al primo click)
   tabs.forEach((btn) => {
     btn.addEventListener('click', () => {
       tabs.forEach((b) => b.classList.remove('active'));
@@ -11,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.classList.add('active');
       const tab = btn.dataset.tab;
       document.getElementById(`${tab}Tab`).classList.add('active');
+      if (tab === 'raw') ensureRawTabFilled();
     });
   });
 
@@ -22,7 +41,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const combined = document.getElementById('combined').checked;
     const jsonOutput = document.getElementById('jsonOutput').checked;
     const threads = document.getElementById('threads').value;
-    const token = document.getElementById('githubToken') ? document.getElementById('githubToken').value : '';
 
     const params = new URLSearchParams({
       n: num,
@@ -32,7 +50,6 @@ document.addEventListener('DOMContentLoaded', () => {
       combined: combined ? 'true' : 'false',
       threads,
     });
-    if (token) params.set('token', token);
     return params;
   }
 
@@ -49,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const combined = document.getElementById('combined').checked;
     const noHomepage = document.getElementById('noHomepage').checked;
     const jsonOutput = document.getElementById('jsonOutput').checked;
-    const hasToken = document.getElementById('githubToken') && document.getElementById('githubToken').value;
+    const hasToken = getToken();
 
     const parts = ['brew-new-tracker-v2.sh', `-n ${num}`];
     if (only !== 'both') parts.push(`--only ${only}`);
@@ -82,6 +99,48 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  async function fetchJson(params) {
+    const resp = await fetch(`/api/brew-tracker?${params.toString()}`, {
+      headers: apiHeaders(),
+    });
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+    }
+    return resp.json();
+  }
+
+  async function ensureRawText(params) {
+    const key = params.toString();
+    if (rawCache.key === key) return rawCache.text;
+    const p = new URLSearchParams(params);
+    p.set('json', 'false');
+    const resp = await fetch(`/api/brew-tracker?${p.toString()}`, {
+      headers: apiHeaders(),
+    });
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+    }
+    const text = await resp.text();
+    rawCache = { key, text };
+    return text;
+  }
+
+  function renderRaw(text) {
+    document.getElementById('rawTab').querySelector('code').textContent = text;
+  }
+
+  async function ensureRawTabFilled() {
+    const code = document.getElementById('rawTab').querySelector('code');
+    if (!currentParamsKey || code.textContent) return;
+    const params = getParams();
+    if (params.toString() !== currentParamsKey) return;
+    try {
+      renderRaw(await ensureRawText(params));
+    } catch (err) {
+      renderRaw(`Errore: ${err.message}`);
+    }
+  }
+
   async function fetchResults() {
     const params = getParams();
     const jsonOutput = params.get('json') === 'true';
@@ -95,13 +154,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('rawTab').querySelector('code').textContent = '';
 
     try {
-      // Fetch JSON data always (for table rendering and JSON tab)
-      params.set('json', 'true');
-      const resp = await fetch(`/api/brew-tracker?${params.toString()}`);
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-      }
-      const data = await resp.json();
+      currentParamsKey = params.toString();
+      const data = await fetchJson(params);
 
       renderWarnings(data.warnings);
 
@@ -109,19 +163,18 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('jsonTab').querySelector('code').textContent =
         JSON.stringify(data, null, 2);
 
-      // Table tab
-      const tablePane = document.getElementById('tableTab');
-      if (jsonOutput) {
-        renderTableFromJSON(data, jsonOutput, params.get('combined') === 'true');
-      } else {
-        renderTableFromJSON(data, jsonOutput, params.get('combined') === 'true');
-      }
+      const combined = params.get('combined') === 'true';
 
-      // Raw text tab: fetch plain text version
-      params.set('json', 'false');
-      const respRaw = await fetch(`/api/brew-tracker?${params.toString()}`);
-      const rawText = await respRaw.text();
-      document.getElementById('rawTab').querySelector('code').textContent = rawText;
+      if (jsonOutput) {
+        // --json attivo: la tab "tabella" mostra la tabella HTML
+        renderTableFromJSON(data, combined);
+      } else {
+        // --json spento: la tab "tabella" mostra la vista testo (box drawing)
+        const text = await ensureRawText(params);
+        document.getElementById('tableTab').innerHTML =
+          `<pre class="text-view">${escapeHtml(text)}</pre>`;
+        renderRaw(text);
+      }
     } catch (err) {
       document.getElementById('tableTab').innerHTML =
         `<div id="loading">Errore: ${err.message}</div>`;
@@ -136,7 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function renderTableFromJSON(data, jsonOutput, combined) {
+  function renderTableFromJSON(data, combined) {
     const pane = document.getElementById('tableTab');
     if (combined) {
       renderCombinedTable(pane, data);
@@ -155,19 +208,24 @@ document.addEventListener('DOMContentLoaded', () => {
         rows.push({ kind, ...r });
       }
     }
-    rows.sort((a, b) => (b.date > a.date ? 1 : -1));
+    rows.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 
     if (!rows.length) {
       pane.innerHTML = '<p style="padding:1rem">Nessun risultato</p>';
       return;
     }
 
+    // La colonna HOMEPAGE appare solo se almeno una riga ha una homepage,
+    // ma ogni riga emette sempre una cella (link o "—") per tenere le
+    // colonne allineate.
+    const hasHomepage = rows.some((r) => r.homepage);
+
     const html = `
       <h2>🍺 🖥 🔠 Tutti i pacchetti (${rows.length})</h2>
       <table>
         <thead><tr>
           <th>TIPO</th><th>NOME</th><th>VER</th><th>DATA</th>
-          ${data.formulae && data.formulae[0] && data.formulae[0].homepage ? '<th>HOMEPAGE</th>' : ''}
+          ${hasHomepage ? '<th>HOMEPAGE</th>' : ''}
           <th>DESC</th>
         </tr></thead>
         <tbody>
@@ -177,7 +235,11 @@ document.addEventListener('DOMContentLoaded', () => {
             <td><strong>${escapeHtml(r.name)}</strong></td>
             <td>${escapeHtml(r.version || '—')}</td>
             <td>${escapeHtml(formatDate(r.date))}</td>
-            ${r.homepage ? `<td><a href="${escapeHtml(r.homepage)}" target="_blank">${escapeHtml(r.homepage.replace(/^https?:\/\//, ''))}</a></td>` : ''}
+            ${hasHomepage
+              ? r.homepage
+                ? `<td><a href="${escapeHtml(r.homepage)}" target="_blank">${escapeHtml(r.homepage.replace(/^https?:\/\//, ''))}</a></td>`
+                : '<td>—</td>'
+              : ''}
             <td>${escapeHtml(r.description || '—')}</td>
           </tr>
         `).join('')}

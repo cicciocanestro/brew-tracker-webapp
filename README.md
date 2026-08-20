@@ -30,7 +30,7 @@ Parametri di query:
 | `noHomepage`  | `false`  | `true` salta il recupero delle homepage             |
 | `combined`    | `false`  | `true` unisce formule+cask+font in una tabella       |
 | `threads`     | `8`      | Worker paralleli per le homepage (1-64)             |
-| `token`       | —        | Token GitHub opzionale (aumenta i rate limit)       |
+| `token`       | —        | Token GitHub opzionale (aumenta i rate limit). Alternativa consigliata: header `X-GitHub-Token` |
 
 ### Esempi
 
@@ -47,9 +47,12 @@ GET /api/brew-tracker?n=10&combined=true&json=false
 Puoi impostare il token tramite:
 
 1. **Variabile d'ambiente**: `export GITHUB_TOKEN=ghp_xxx`
-2. **Interfaccia web**: incolla il token nel campo dedicato nel form
+2. **Interfaccia web**: incolla il token nel campo dedicato nel form (il frontend lo invia nell'header `X-GitHub-Token`, mai nella query string)
+3. **Header HTTP** (per chiamate API dirette): `X-GitHub-Token: ghp_xxx`
 
 Con un token: 30 richieste/min. Senza: 10 richieste/min.
+
+> Il parametro di query `token` è ancora supportato per retrocompatibilità, ma è sconsigliato: i token nella query string finiscono nei log dei server/proxy.
 
 ## Stack tecnologico
 
@@ -61,3 +64,9 @@ Con un token: 30 richieste/min. Senza: 10 richieste/min.
 - Le date usano il fuso orario del server invece di Europe/Rome
 - L'output JSON include campi aggiuntivi: `combined`, `warnings`
 - L'output testuale è generato server-side (nessun terminale richiesto)
+
+## Cache e rate limit
+
+- Le risposte della ricerca GitHub sono memorizzate in cache per **5 minuti**
+- I dati di `formulae.brew.sh` (versione, homepage, descrizione) per **24 ore** (max 2000 voci, con scadenza automatica)
+- Il timeout delle chiamate esterne è di **15 secondi** (`AbortSignal.timeout`)
