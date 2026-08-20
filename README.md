@@ -1,6 +1,6 @@
 # Brew New Tracker Web App
 
-Una web app full-stack che replica l'output dello script [`brew-new-tracker-v2.sh`](https://github.com/massicanzo/brew-new-tracker), mostrando le formule, i cask e i font aggiunti di recente a Homebrew.
+Una web app full-stack che replica l'output dello script [`brew-new-tracker-v2.sh`](https://github.com/cicciocanestro/brew-new-tracker), mostrando le formule, i cask e i font aggiunti di recente a Homebrew.
 
 ## Requisiti
 
