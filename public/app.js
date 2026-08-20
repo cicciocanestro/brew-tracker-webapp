@@ -271,7 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ${rows.map((r) => `
           <tr>
             <td><span class="type-badge ${r.kind === 'formula' ? 'type-formula' : r.kind === 'cask' ? 'type-cask' : 'type-font'}">${r.kind}</span></td>
-            <td><strong>${escapeHtml(r.name)}</strong></td>
+            <td>${makeNameCell(r.kind, r.name)}</td>
             <td>${escapeHtml(r.version || '—')}</td>
             <td>${escapeHtml(formatDate(r.date))}</td>
             ${hasHomepage
@@ -304,6 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
       total += rows.length;
 
       const hasHomepage = rows.some((r) => r.homepage);
+      const kind = section.key === 'formulae' ? 'formula' : section.key === 'casks' ? 'cask' : 'font';
       html += `<h2>${section.icon} ${section.label} (${rows.length})</h2>`;
       html += '<table><thead><tr>'
         + '<th>NOME</th><th>VER</th><th>DATA</th>'
@@ -313,7 +314,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       for (const r of rows) {
         html += '<tr>';
-        html += `<td><strong>${escapeHtml(r.name)}</strong></td>`;
+        html += `<td>${makeNameCell(kind, r.name)}</td>`;
         html += `<td>${escapeHtml(r.version || '—')}</td>`;
         html += `<td>${escapeHtml(formatDate(r.date))}</td>`;
         if (hasHomepage) {
@@ -348,6 +349,77 @@ document.addEventListener('DOMContentLoaded', () => {
     const yy = String(d.getFullYear()).slice(-2);
     return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${yy}`;
   }
+
+  // ---------------------------------------------------------------------------
+  // Copia "brew install ..." al click sul nome di un pacchetto
+  // ---------------------------------------------------------------------------
+
+  // Le formule si installano con "brew install <nome>", i cask (e i font,
+  // che sono cask) con "brew install --cask <nome>".
+  function brewCommand(kind, name) {
+    const flag = kind === 'formula' ? '' : ' --cask';
+    return `brew install${flag} ${name}`;
+  }
+
+  // Cella nome cliccabile: il comando da copiare è salvato in data-cmd.
+  function makeNameCell(kind, name) {
+    const cmd = brewCommand(kind, name);
+    return `<span class="pkg-name" role="button" tabindex="0" title="Copia ${cmd}" data-cmd="${escapeHtml(cmd)}">${escapeHtml(name)}</span>`;
+  }
+
+  async function copyToClipboard(text) {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  let toastTimer = null;
+  function showToast(message) {
+    let toast = document.getElementById('toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'toast';
+      toast.className = 'toast';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 1800);
+  }
+
+  // Delegazione eventi sulla tab "tabella": sopravvive ai re-render
+  // (il contenuto di #tableTab viene sostituito a ogni fetch).
+  const tablePane = document.getElementById('tableTab');
+  tablePane.addEventListener('click', async (e) => {
+    const el = e.target.closest('.pkg-name');
+    if (!el) return;
+    const cmd = el.dataset.cmd;
+    const ok = await copyToClipboard(cmd);
+    showToast(ok ? `✓ ${cmd}` : `Errore: impossibile copiare "${cmd}"`);
+  });
+  tablePane.addEventListener('keydown', (e) => {
+    const el = e.target.closest('.pkg-name');
+    if (!el) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      el.click();
+    }
+  });
 
   // Wire up the "Esegui" button
   goBtn.addEventListener('click', fetchResults);

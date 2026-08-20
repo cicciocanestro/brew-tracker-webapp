@@ -535,6 +535,50 @@ tr:hover td {
 .type-cask { color: var(--cask); }
 .type-font { color: var(--font-clr); }
 
+/* Clickable package name — copies "brew install ..." to the clipboard */
+.pkg-name {
+  cursor: pointer;
+  font-weight: 600;
+  border-bottom: 1px dashed var(--border);
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.pkg-name:hover {
+  color: var(--amber);
+  border-bottom-color: var(--amber);
+}
+
+.pkg-name:focus-visible {
+  outline: none;
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px var(--amber-soft);
+}
+
+/* Copy confirmation toast */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.5rem;
+  transform: translateX(-50%) translateY(0.5rem);
+  background: var(--bg-elevated);
+  border: 1px solid var(--amber-dim);
+  color: var(--amber);
+  padding: 0.55rem 1.05rem;
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 50;
+  box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.7);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 a {
   color: var(--cask);
   text-decoration: none;
